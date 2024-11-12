@@ -1,271 +1,186 @@
-/ Load data from local storage on page load
-document.addEventListener("DOMContentLoaded", () => {
-    displayWorkoutsByDate(); // Display workouts for today on load
-});
+const APP_ID = 'e34da4c0';
+const API_KEY = 'f6df345c7b47e4d794b3be6b714b3556';
 
-// Function to add a workout entry
-function addWorkout() {
-    const exercise = document.getElementById("exercise").value;
-    const sets = document.getElementById("sets").value;
-    const reps = document.getElementById("reps").value;
-    const weight = document.getElementById("weight").value;
-    const date = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+// Initialize workout and calorie logs from localStorage
+let workoutLogs = JSON.parse(localStorage.getItem('workoutLogs')) || {};
+let calorieLog = JSON.parse(localStorage.getItem('calorieLog')) || [];
 
-    if (exercise && sets && reps && weight) {
-        const workout = { exercise, sets, reps, weight };
-
-        // Fetch workouts from local storage or initialize an empty object
-        let workoutsByDate = JSON.parse(localStorage.getItem("workoutsByDate")) || {};
-
-        // Add the workout to the current date
-        if (!workoutsByDate[date]) {
-            workoutsByDate[date] = [];
-        }
-        workoutsByDate[date].push(workout);
-
-        // Save updated workouts back to local storage
-        localStorage.setItem("workoutsByDate", JSON.stringify(workoutsByDate));
-
-        // Refresh the display
-        displayWorkoutsByDate();
-
-        // Clear input fields
-        document.getElementById("exercise").value = '';
-        document.getElementById("sets").value = '';
-        document.getElementById("reps").value = '';
-        document.getElementById("weight").value = '';
-    }
-}
-
-// Function to display workouts for the selected date
-function displayWorkoutsByDate() {
-    const date = document.getElementById("date-picker").value || new Date().toISOString().split('T')[0];
-    const workoutsByDate = JSON.parse(localStorage.getItem("workoutsByDate")) || {};
-    const workoutList = document.getElementById("workout-list");
-
-    const workouts = workoutsByDate[date] || [];
-    workoutList.innerHTML = workouts.length > 0 
-        ? workouts.map((workout, index) => 
-            `<li>
-                ${workout.exercise}: ${workout.sets} sets x ${workout.reps} reps @ ${workout.weight} kg
-                <button class="delete-btn" onclick="deleteWorkout('${date}', ${index})">Delete</button>
-            </li>`
-        ).join("")
-        : "<p>No workouts logged for this date.</p>";
-}
-
-// Function to delete a workout entry for a specific date
-function deleteWorkout(date, index) {
-    let workoutsByDate = JSON.parse(localStorage.getItem("workoutsByDate")) || {};
-    if (workoutsByDate[date]) {
-        workoutsByDate[date].splice(index, 1);
-        if (workoutsByDate[date].length === 0) {
-            delete workoutsByDate[date]; // Remove date key if no workouts left
-        }
-        localStorage.setItem("workoutsByDate", JSON.stringify(workoutsByDate));
-        displayWorkoutsByDate();
-    }
-}
-// Initialize the log date as today's date
+// Set today's date as default
 document.getElementById('log-date').value = new Date().toISOString().split('T')[0];
 
-// Function to log workout details (exercise, reps, sets, weight)
+// Function to log workout
 function logWorkout() {
-    const exercise = document.getElementById('exercise').value.trim();
-    const reps = document.getElementById('reps').value;
-    const sets = document.getElementById('sets').value;
-    const weight = document.getElementById('weight').value;
     const date = document.getElementById('log-date').value;
+    const exercise = document.getElementById('exercise').value.trim();
+    const sets = parseInt(document.getElementById('sets').value);
+    const reps = parseInt(document.getElementById('reps').value);
+    const weight = parseInt(document.getElementById('weight').value);
 
-    if (!exercise || reps <= 0 || sets <= 0 || weight <= 0) {
-        alert("Please fill in all workout fields correctly.");
+    if (!exercise || sets <= 0 || reps <= 0 || weight <= 0) {
+        alert("Please fill in all fields correctly.");
         return;
     }
 
-    const workoutEntry = {
-        exercise,
-        reps,
-        sets,
-        weight,
-        date,
-    };
+    const workoutEntry = { exercise, sets, reps, weight };
 
-    // Retrieve existing workouts from localStorage or initialize an empty array
-    const workoutLogs = JSON.parse(localStorage.getItem('workoutLogs')) || {};
-
-    // If the date doesn't exist yet, create a new entry
-    if (!workoutLogs[date]) {
-        workoutLogs[date] = [];
-    }
-
-    // Add the new workout log
+    if (!workoutLogs[date]) workoutLogs[date] = [];
     workoutLogs[date].push(workoutEntry);
 
-    // Save updated logs back to localStorage
     localStorage.setItem('workoutLogs', JSON.stringify(workoutLogs));
-
-    // Clear input fields
-    document.getElementById('exercise').value = '';
-    document.getElementById('reps').value = '';
-    document.getElementById('sets').value = '';
-    document.getElementById('weight').value = '';
-
-    alert("Workout logged successfully!");
+    displayWorkouts(date);
 }
 
-// Function to calculate calories for the entered food item and quantity
-async function calculateCalories() {
-    const foodItem = document.getElementById("food").value.trim();
-    const quantity = document.getElementById("quantity").value;
-    const date = document.getElementById('log-date').value;
+// Display workouts for selected date
+function displayWorkouts(date) {
+    const workoutDisplay = document.getElementById('workout-log-display');
+    const workouts = workoutLogs[date] || [];
+    workoutDisplay.innerHTML = workouts.length ? 
+        workouts.map((workout, index) => 
+            `<p>${workout.exercise} - ${workout.sets} sets x ${workout.reps} reps @ ${workout.weight} kg 
+            <button onclick="deleteWorkout('${date}', ${index})">Delete</button></p>`
+        ).join('') : 
+        "<p>No workouts logged for this day.</p>";
+}
 
-    if (!foodItem || quantity <= 0) {
-        alert("Please enter a valid food item and quantity.");
+// Delete a workout
+function deleteWorkout(date, index) {
+    workoutLogs[date].splice(index, 1);
+    if (workoutLogs[date].length === 0) delete workoutLogs[date];
+    localStorage.setItem('workoutLogs', JSON.stringify(workoutLogs));
+    displayWorkouts(date);
+}
+
+// Function to set the daily calorie goal
+function setCalorieGoal() {
+    const goalInput = document.getElementById('calorie-goal').value;
+    if (goalInput && goalInput > 0) {
+        calorieGoal = parseInt(goalInput);
+        localStorage.setItem('calorieGoal', JSON.stringify(calorieGoal));
+        displayCalories();
+        alert(`Your daily calorie goal is set to ${calorieGoal} kcal.`);
+    } else {
+        alert("Please enter a valid calorie goal.");
+    }
+}
+
+// Function to search for food items using the Edamam API
+async function searchFood() {
+    const foodInput = document.getElementById('food-input').value.trim();
+    if (!foodInput) {
+        alert("Enter a food item to search.");
         return;
     }
 
-    const APP_ID = 'your_app_id';
-    const API_KEY = 'your_api_key';
-
+    const url = `https://api.edamam.com/api/food-database/v2/parser?ingr=${encodeURIComponent(foodInput)}&app_id=${APP_ID}&app_key=${API_KEY}`;
     try {
-        const response = await fetch(`https://api.edamam.com/api/food-database/v2/parser?ingr=${encodeURIComponent(foodItem)}&app_id=${APP_ID}&app_key=${API_KEY}`);
+        const response = await fetch(url);
         const data = await response.json();
-
-        if (data.hints.length === 0) {
-            document.getElementById("calorie-result").textContent = "Food item not found.";
-            return;
-        }
-
-        const caloriesPer100g = data.hints[0].food.nutrients.ENERC_KCAL;
-        const totalCalories = (caloriesPer100g / 100) * quantity;
-
-        // Display the result
-        const resultText = `The ${quantity}g of ${foodItem} contains approximately ${totalCalories.toFixed(2)} calories.`;
-        document.getElementById("calorie-result").textContent = resultText;
-
-        // Save the result to the calorie log
-        saveCalorieLog(foodItem, quantity, totalCalories, date);
-
-        // Display calorie log
-        displayCalorieLog(date);
+        displayFoodResults(data);
     } catch (error) {
-        alert("Error calculating calories.");
-        console.error(error);
+        console.error("Error fetching food data:", error);
     }
 }
 
-// Function to save calorie log entry to local storage
-function saveCalorieLog(foodItem, quantity, totalCalories, date) {
-    const calorieEntry = {
-        foodItem,
-        quantity,
-        totalCalories,
-        date,
+// Display food search results
+function displayFoodResults(data) {
+    const foodResults = document.getElementById('food-results');
+    foodResults.innerHTML = '';
+
+    if (data.parsed.length) {
+        const foodItem = data.parsed[0].food;
+        const caloriesPer100g = foodItem.nutrients.ENERC_KCAL || 0;
+
+        foodResults.innerHTML = `
+            <p>${foodItem.label}: ${caloriesPer100g.toFixed(2)} kcal per 100g</p>
+            <label for="food-weight">Enter weight (g):</label>
+            <input type="number" id="food-weight" placeholder="Weight in grams">
+            <button onclick="logCalories('${foodItem.label}', ${caloriesPer100g})">Add</button>`;
+    } else {
+        foodResults.textContent = 'No results found.';
+    }
+}
+
+// Log the food item with calories based on weight
+function logCalories(foodName, caloriesPer100g) {
+    const weightInput = document.getElementById('food-weight');
+    const weight = parseFloat(weightInput.value);
+
+    if (isNaN(weight) || weight <= 0) {
+        alert("Please enter a valid weight.");
+        return;
+    }
+
+    const totalCalories = (caloriesPer100g * weight) / 100;
+    const logEntry = {
+        food: foodName,
+        weight: weight,
+        calories: totalCalories,
+        date: new Date().toLocaleDateString()
     };
 
-    // Retrieve existing calorie logs from localStorage
-    const calorieLogs = JSON.parse(localStorage.getItem('calorieLogs')) || {};
-
-    // If the date doesn't exist yet, create a new entry
-    if (!calorieLogs[date]) {
-        calorieLogs[date] = [];
-    }
-
-    // Add the new calorie log
-    calorieLogs[date].push(calorieEntry);
-
-    // Save updated logs back to localStorage
-    localStorage.setItem('calorieLogs', JSON.stringify(calorieLogs));
-}
-
-// Function to delete a workout log entry
-function deleteWorkout(date, index) {
-    const workoutLogs = JSON.parse(localStorage.getItem('workoutLogs')) || {};
-    
-    if (workoutLogs[date]) {
-        workoutLogs[date].splice(index, 1);  // Remove the specific entry
-
-        if (workoutLogs[date].length === 0) {
-            delete workoutLogs[date];  // If no workouts left for this date, delete the date entry
-        }
-
-        localStorage.setItem('workoutLogs', JSON.stringify(workoutLogs));
-
-        // Refresh the log display
-        showLogs();
-    }
-}
-
-// Function to delete a calorie log entry
-function deleteCalorie(date, index) {
-    const calorieLogs = JSON.parse(localStorage.getItem('calorieLogs')) || {};
-
-    if (calorieLogs[date]) {
-        calorieLogs[date].splice(index, 1);  // Remove the specific entry
-
-        if (calorieLogs[date].length === 0) {
-            delete calorieLogs[date];  // If no calories left for this date, delete the date entry
-        }
-
-        localStorage.setItem('calorieLogs', JSON.stringify(calorieLogs));
-
-        // Refresh the log display
-        showLogs();
-    }
-}
-
-// Display workout log for the selected date
-function showLogs() {
-    const date = document.getElementById('log-date').value;
-    const workoutLogs = JSON.parse(localStorage.getItem('workoutLogs')) || {};
-    const calorieLogs = JSON.parse(localStorage.getItem('calorieLogs')) || {};
-
-    // Display workout logs
-    const workoutDisplay = document.getElementById('workout-log-display');
-    const workouts = workoutLogs[date] || [];
-    workoutDisplay.innerHTML = workouts.length === 0 ? "<p>No workouts logged for this day.</p>" : 
-        workouts.map((workout, index) => 
-            `<p>${workout.exercise} - Reps: ${workout.reps}, Sets: ${workout.sets}, Weight: ${workout.weight}kg 
-            <button onclick="deleteWorkout('${date}', ${index})">Delete</button></p>`
-        ).join('');
-
-    // Display calorie logs
-    const calorieDisplay = document.getElementById('calorie-log-display');
-    const calories = calorieLogs[date] || [];
-    calorieDisplay.innerHTML = calories.length === 0 ? "<p>No calories logged for this day.</p>" :
-        calories.map((entry, index) => 
-            `<p>${entry.foodItem} - Quantity: ${entry.quantity}g - Calories: ${entry.totalCalories.toFixed(2)}
-            <button onclick="deleteCalorie('${date}', ${index})">Delete</button></p>`
-        ).join('');
-}
-
-
-
-// Calorie Intake Calculator
-function addCalories() {
-    const foodItem = document.getElementById("food-item").value;
-    const calories = Number(document.getElementById("calories").value);
-
-    if (foodItem && calories) {
-        const entry = { foodItem, calories };
-        let calorieLog = JSON.parse(localStorage.getItem("calorieLog")) || [];
-        calorieLog.push(entry);
-        localStorage.setItem("calorieLog", JSON.stringify(calorieLog));
-        displayCalories();
-    }
-}
-
-function displayCalories() {
-    const calorieLog = JSON.parse(localStorage.getItem("calorieLog")) || [];
-    const calorieList = document.getElementById("calorie-list");
-    const totalCalories = calorieLog.reduce((sum, entry) => sum + entry.calories, 0);
-
-    calorieList.innerHTML = calorieLog.map(entry => 
-        `<li>${entry.foodItem}: ${entry.calories} kcal</li>`
-    ).join("");
-    document.getElementById("total-calories").innerText = totalCalories;
-}
-
-function loadCalories() {
+    calorieLog.push(logEntry);
+    localStorage.setItem('calorieLog', JSON.stringify(calorieLog));
     displayCalories();
 }
+
+// Display logged calories and remaining calories for the day
+function displayCalories() {
+    const calorieList = document.getElementById('calorie-list');
+    let totalCalories = 0;
+
+    calorieList.innerHTML = calorieLog.map(entry => {
+        totalCalories += entry.calories;
+        return `<li>${entry.food} - ${entry.weight}g: ${entry.calories.toFixed(2)} kcal
+            <button class="delete-btn" onclick="deleteCalorie('${entry.food}', ${entry.weight})">Delete</button></li>`;
+    }).join('');
+
+    document.getElementById('total-calories').textContent = totalCalories.toFixed(2);
+
+    // Display remaining calories if goal is set
+    if (calorieGoal > 0) {
+        const caloriesLeft = calorieGoal - totalCalories;
+        document.getElementById('calories-left').textContent = caloriesLeft > 0 ? caloriesLeft.toFixed(2) : 0;
+    } else {
+        document.getElementById('calories-left').textContent = 'N/A';
+    }
+}
+
+// Delete a food item from the calorie log
+function deleteCalorie(foodName, weight) {
+    calorieLog = calorieLog.filter(entry => !(entry.food === foodName && entry.weight === weight));
+    localStorage.setItem('calorieLog', JSON.stringify(calorieLog));
+    displayCalories();
+}
+
+// Display existing log and goal on page load
+window.onload = function() {
+    displayCalories();
+};
+// Function to toggle between dark and light mode
+function toggleTheme() {
+    const body = document.body;
+    const currentTheme = body.classList.contains('dark-mode') ? 'dark' : 'light';
+
+    if (currentTheme === 'light') {
+        body.classList.add('dark-mode');
+        document.getElementById('theme-toggle').textContent = 'Switch to Light Mode';
+        localStorage.setItem('theme', 'dark');
+    } else {
+        body.classList.remove('dark-mode');
+        document.getElementById('theme-toggle').textContent = 'Switch to Dark Mode';
+        localStorage.setItem('theme', 'light');
+    }
+}
+
+// Initialize theme based on saved preference
+window.onload = function() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-mode');
+        document.getElementById('theme-toggle').textContent = 'Switch to Light Mode';
+    } else {
+        document.body.classList.remove('dark-mode');
+        document.getElementById('theme-toggle').textContent = 'Switch to Dark Mode';
+    }
+    displayCalories();
+};
